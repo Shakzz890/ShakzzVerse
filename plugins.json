@@ -1,0 +1,12 @@
+{
+  "name": "ShakzzVerse",
+  "description": "Disney, Netflix, Hotstar & Prime Video providers",
+  "manifestVersion": 1,
+  "pluginLists": [
+    {
+      "name": "ShakzzVerse Providers",
+      "version": 1,
+      "url": "https://www.mediafire.com/file/0z0i8mk34m0nurp/shakzzverse-debug.aar"
+    }
+  ]
+}
