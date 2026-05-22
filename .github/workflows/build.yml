@@ -1,21 +1,15 @@
 name: Build
 
-# https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#concurrency
-concurrency: 
+concurrency:
   group: "build"
   cancel-in-progress: true
 
 on:
   push:
     branches:
-      # choose your default branch
-      - master
-      - main
-    paths-ignore:
-      - '*.md'
+      - masters
   workflow_dispatch:
 
-# Grant administrative permissions to allow the workflow to write back to your repository branches
 permissions:
   contents: write
 
@@ -33,7 +27,13 @@ jobs:
         with:
           ref: "builds"
           path: "builds"
-      
+
+      - name: Setup Git Identity
+        run: |
+          cd $GITHUB_WORKSPACE/builds
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+
       - name: Clean old builds
         run: rm -f $GITHUB_WORKSPACE/builds/*.cs3
 
@@ -43,24 +43,18 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          # Force use of skip metadata flags inside the action execution
           ./gradlew make makePluginsJson -Dorg.gradle.jvmargs="-Xmx2048m"
           cp -f **/build/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || cp -f build/*.cs3 $GITHUB_WORKSPACE/builds/
           cp -f build/plugins.json $GITHUB_WORKSPACE/builds/
 
-      - name: Push Compiled Extensions to builds branch
+      - name: Push Compiled Extensions
         run: |
           cd $GITHUB_WORKSPACE/builds
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
           git add .
-          # Overwrite or amend previous build logs cleanly
-          git commit --amend -m "Build $GITHUB_SHA" || git commit -m "Build $GITHUB_SHA" || exit 0
-          git push --force origin builds
+          # This command creates a commit only if there are changes to avoid exit code 1
+          git diff-index --quiet HEAD || git commit -m "Build $GITHUB_SHA"
+          git push origin builds
