@@ -4,9 +4,9 @@
   "manifestVersion": 1,
   "pluginLists": [
     {
-      "name": "ShakzzVerse Providers",
+      "name": "ShakzzVerse",
       "version": 1,
-      "url": "https://www.mediafire.com/file/0z0i8mk34m0nurp/shakzzverse-debug.aar"
+      "url": "https://github.com/Shakzz890/ShakzzVerse/releases/download/v1.0/shakzzverse-debug.aar"
     }
   ]
 }
