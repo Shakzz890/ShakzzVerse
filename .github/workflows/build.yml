@@ -55,22 +55,60 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # DEBUG: Show project structure before building
+      - name: 🔍 Pre-Build Structure
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          echo "=== ROOT FILES ==="
+          ls -la
+          echo "=== GRADLE FILES ==="
+          find . -name "build.gradle*" -o -name "settings.gradle*" | head -20
+          echo "=== KOTLIN/JAVA SOURCE FILES ==="
+          find . -path "*/src/main/*" \( -name "*.kt" -o -name "*.java" \) | head -20
+          echo "=== ALL MODULES ==="
+          ls -d */ 2>/dev/null || true
+
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew clean make --no-build-cache --stacktrace -Dorg.gradle.jvmargs="-Xmx2048m"
-          ./gradlew makePluginsJson --no-build-cache || true
+          ./gradlew clean make --no-build-cache --info -Dorg.gradle.jvmargs="-Xmx2048m" 2>&1 | tee build.log
+          ./gradlew makePluginsJson --no-build-cache --info || true 2>&1 | tee -a build.log
+
+      # DEBUG: Show EVERYTHING after build
+      - name: 🔍 Full Build Debug
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          echo "=== ALL FILES IN BUILD/ (recursive) ==="
+          find . -path "*/build/*" -type f | sort
+          echo ""
+          echo "=== ALL .cs3 ANYWHERE ==="
+          find . -name "*.cs3" -type f
+          echo ""
+          echo "=== ALL plugins.json ANYWHERE ==="
+          find . -name "plugins.json" -type f
+          echo ""
+          echo "=== ALL .jar ANYWHERE ==="
+          find . -name "*.jar" -type f | head -20
+          echo ""
+          echo "=== GRADLE BUILD LOG (last 50 lines) ==="
+          tail -n 50 build.log || true
 
       - name: Copy Build Artifacts
         run: |
           cd $GITHUB_WORKSPACE/src
-          find . -name "*.cs3" -path "*/build/*" -exec cp -f {} $GITHUB_WORKSPACE/builds/ \;
-          cp -f build/plugins.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
+          find . -name "*.cs3" -type f -exec cp -v {} $GITHUB_WORKSPACE/builds/ \;
+          find . -name "plugins.json" -type f -exec cp -v {} $GITHUB_WORKSPACE/builds/ \;
+          echo "=== builds/ contents ==="
+          ls -la $GITHUB_WORKSPACE/builds/
 
       - name: Push Compiled Extensions
         run: |
           cd $GITHUB_WORKSPACE/builds
           git add .
-          git diff-index --quiet HEAD || git commit -m "Build $GITHUB_SHA"
-          git push origin builds
+          if git diff --cached --quiet; then
+            echo "❌ NOTHING TO PUSH — builds/ folder is empty"
+          else
+            git commit -m "Build $GITHUB_SHA"
+            git push origin builds
+          fi
