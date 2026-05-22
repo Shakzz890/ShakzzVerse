@@ -13,46 +13,54 @@ on:
       - main
     paths-ignore:
       - '*.md'
+  workflow_dispatch:
+
+# Grant administrative permissions to allow the workflow to write back to your repository branches
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@master
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
         with:
           path: "src"
 
-      - name: Checkout builds
-        uses: actions/checkout@master
+      - name: Checkout builds branch
+        uses: actions/checkout@v4
         with:
           ref: "builds"
           path: "builds"
       
       - name: Clean old builds
-        run: rm $GITHUB_WORKSPACE/builds/*.cs3
+        run: rm -f $GITHUB_WORKSPACE/builds/*.cs3
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
-          java-version: 17
+          java-version: '17'
+          distribution: 'temurin'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
 
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson
-          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds
-          cp build/plugins.json $GITHUB_WORKSPACE/builds
+          # Force use of skip metadata flags inside the action execution
+          ./gradlew make makePluginsJson -Dorg.gradle.jvmargs="-Xmx2048m"
+          cp -f **/build/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || cp -f build/*.cs3 $GITHUB_WORKSPACE/builds/
+          cp -f build/plugins.json $GITHUB_WORKSPACE/builds/
 
-      - name: Push builds
+      - name: Push Compiled Extensions to builds branch
         run: |
           cd $GITHUB_WORKSPACE/builds
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add .
-          git commit --amend -m "Build $GITHUB_SHA" || exit 0   # do not error if nothing to commit
-          git push --force
+          # Overwrite or amend previous build logs cleanly
+          git commit --amend -m "Build $GITHUB_SHA" || git commit -m "Build $GITHUB_SHA" || exit 0
+          git push --force origin builds
