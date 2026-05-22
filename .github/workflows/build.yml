@@ -22,6 +22,18 @@ jobs:
         with:
           path: "src"
 
+      - name: Ensure builds branch exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh api repos/${{ github.repository }}/git/refs/heads/builds --silent 2>/dev/null; then
+            echo "Creating empty 'builds' branch..."
+            gh api repos/${{ github.repository }}/git/refs \
+              -X POST \
+              -f ref=refs/heads/builds \
+              -f sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+          fi
+
       - name: Checkout builds branch
         uses: actions/checkout@v4
         with:
@@ -35,7 +47,7 @@ jobs:
           git config --local user.name "GitHub Actions"
 
       - name: Clean old builds
-        run: rm -f $GITHUB_WORKSPACE/builds/*.cs3
+        run: rm -f $GITHUB_WORKSPACE/builds/*.cs3 $GITHUB_WORKSPACE/builds/plugins.json
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -47,14 +59,18 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson -Dorg.gradle.jvmargs="-Xmx2048m"
-          cp -f **/build/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || cp -f build/*.cs3 $GITHUB_WORKSPACE/builds/
-          cp -f build/plugins.json $GITHUB_WORKSPACE/builds/
+          ./gradlew clean make --no-build-cache --stacktrace -Dorg.gradle.jvmargs="-Xmx2048m"
+          ./gradlew makePluginsJson --no-build-cache || true
+
+      - name: Copy Build Artifacts
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          find . -name "*.cs3" -path "*/build/*" -exec cp -f {} $GITHUB_WORKSPACE/builds/ \;
+          cp -f build/plugins.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
       - name: Push Compiled Extensions
         run: |
           cd $GITHUB_WORKSPACE/builds
           git add .
-          # This command creates a commit only if there are changes to avoid exit code 1
           git diff-index --quiet HEAD || git commit -m "Build $GITHUB_SHA"
           git push origin builds
